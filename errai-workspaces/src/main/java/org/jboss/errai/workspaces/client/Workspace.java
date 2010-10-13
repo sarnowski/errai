@@ -61,6 +61,7 @@ import static org.jboss.errai.workspaces.client.api.Extension.Location.*;
  * Maintains {@link Tool}'s
  *
  * @author Heiko.Braun <heiko.braun@jboss.com>
+ * @author Tobias Sarnowski
  */
 public class Workspace extends DeckLayoutPanel implements RequiresResize {
     public static final String SUBJECT = "Workspace";
