@@ -36,10 +36,14 @@ import org.gwt.mosaic.ui.client.util.WidgetHelper;
 import org.jboss.errai.bus.client.ErraiBus;
 import org.jboss.errai.bus.client.api.Message;
 import org.jboss.errai.bus.client.api.MessageCallback;
+import org.jboss.errai.bus.client.security.AuthenticationContext;
+import org.jboss.errai.bus.client.security.SecurityService;
+import org.jboss.errai.workspaces.client.api.Extension;
 import org.jboss.errai.workspaces.client.api.ProvisioningCallback;
 import org.jboss.errai.workspaces.client.api.ResourceFactory;
 import org.jboss.errai.workspaces.client.api.Tool;
 import org.jboss.errai.workspaces.client.api.ToolSet;
+import org.jboss.errai.workspaces.client.framework.Registry;
 import org.jboss.errai.workspaces.client.icons.ErraiImageBundle;
 import org.jboss.errai.workspaces.client.protocols.LayoutCommands;
 import org.jboss.errai.workspaces.client.protocols.LayoutParts;
@@ -47,7 +51,11 @@ import org.jboss.errai.workspaces.client.util.LayoutUtil;
 import org.jboss.errai.workspaces.client.widgets.WSToolSetLauncher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import static org.jboss.errai.workspaces.client.api.Extension.*;
+import static org.jboss.errai.workspaces.client.api.Extension.Location.*;
 
 /**
  * Maintains {@link Tool}'s
@@ -59,6 +67,11 @@ public class Workspace extends DeckLayoutPanel implements RequiresResize {
     private Menu menu;
 
     private static List<ToolSet> toolSets = new ArrayList<ToolSet>();
+
+    private static List<Extension> bottomExtensions = new ArrayList<Extension>();
+    private static List<Extension> leftExtensions = new ArrayList<Extension>();
+    private static List<Extension> rightExtensions = new ArrayList<Extension>();
+    private static List<Extension> topExtensions = new ArrayList<Extension>();
 
     private static Workspace instance;
 
@@ -80,49 +93,49 @@ public class Workspace extends DeckLayoutPanel implements RequiresResize {
         this.setPadding(5);
 
         ErraiBus.get().subscribe(
-                Workspace.SUBJECT,
-                new MessageCallback() {
-                    public void callback(final Message message) {
-                        switch (LayoutCommands.valueOf(message.getCommandType())) {
-                            case ActivateTool:
-                                String toolsetId = message.get(String.class, LayoutParts.TOOLSET);
-                                String toolId = message.get(String.class, LayoutParts.TOOL);
+            Workspace.SUBJECT,
+            new MessageCallback() {
+                public void callback(final Message message) {
+                    switch (LayoutCommands.valueOf(message.getCommandType())) {
+                        case ActivateTool:
+                            String toolsetId = message.get(String.class, LayoutParts.TOOLSET);
+                            String toolId = message.get(String.class, LayoutParts.TOOL);
 
-                                showToolSet(toolsetId, toolId);
+                            showToolSet(toolsetId, toolId);
 
-                                // create browser history
-                                recordHistory(toolsetId, toolId);
+                            // create browser history
+                            recordHistory(toolsetId, toolId);
 
-                                break;
-                        }
+                            break;
                     }
                 }
+            }
         );
 
         // handle browser history
         History.addValueChangeHandler(
-                new ValueChangeHandler<String>() {
-                    public void onValueChange(ValueChangeEvent<String> event) {
-                        // avoid interference with other history tokens
-                        // example token: errai_Administration;Users.5
+            new ValueChangeHandler<String>() {
+                public void onValueChange(ValueChangeEvent<String> event) {
+                    // avoid interference with other history tokens
+                    // example token: errai_Administration;Users.5
 
-                        String tokenString = event.getValue();
-                        if (tokenString.startsWith("errai_")) {
-                            String[] tokens = splitHistoryToken(tokenString);
+                    String tokenString = event.getValue();
+                    if (tokenString.startsWith("errai_")) {
+                        String[] tokens = splitHistoryToken(tokenString);
 
-                            String toolsetId = tokens[0];
-                            String toolId = tokens[1].equals("none") ? null : tokens[1];
+                        String toolsetId = tokens[0];
+                        String toolId = tokens[1].equals("none") ? null : tokens[1];
 
-                            showToolSet(toolsetId, toolId);
+                        showToolSet(toolsetId, toolId);
 
-                            // correlation id
-                            if (tokens.length > 2) {
-                                String corrId = tokens[3];
-                                // not used at the moment
-                            }
+                        // correlation id
+                        if (tokens.length > 2) {
+                            String corrId = tokens[3];
+                            // not used at the moment
                         }
                     }
                 }
+            }
         );
     }
 
@@ -205,17 +218,17 @@ public class Workspace extends DeckLayoutPanel implements RequiresResize {
             ResourceFactory resourceFactory = GWT.create(ResourceFactory.class);
             ErraiImageBundle erraiImageBundle = GWT.create(ErraiImageBundle.class);
             ImageResource resource = resourceFactory.createImage(selectedTool.getName()) != null ?
-                    resourceFactory.createImage(selectedTool.getName()) : erraiImageBundle.application();
+                resourceFactory.createImage(selectedTool.getName()) : erraiImageBundle.application();
 
             deck.tabLayout.add(
-                    panelTool,
-                    AbstractImagePrototype.create(resource).getHTML() + "&nbsp;" + selectedTool.getName(),
-                    true
+                panelTool,
+                AbstractImagePrototype.create(resource).getHTML() + "&nbsp;" + selectedTool.getName(),
+                true
             );
 
 
             deck.tabLayout.selectTab(
-                    deck.tabLayout.getWidgetCount() - 1
+                deck.tabLayout.getWidgetCount() - 1
             );
 
             DeferredCommand.addCommand(new Command() {
@@ -346,4 +359,38 @@ public class Workspace extends DeckLayoutPanel implements RequiresResize {
        this.id = id;
      }
    } */
+
+    public void addExtensions(List<Extension> extensions) {
+        AuthenticationContext authContext = Registry.get(SecurityService.class).getAuthenticationContext();
+
+        // FIXME: is that correct??
+        boolean loggedIn = authContext.isValid();
+
+        for (Extension extension: extensions) {
+            if (!extension.forLoggedIn() && !extension.forLoggedOff()) {
+                throw new IllegalArgumentException("Extension is disabled in every case");
+            }
+
+            if (loggedIn && !extension.forLoggedIn()) {
+                // user authenticated but widget is only for guests
+                continue;
+            } else if (!loggedIn && !extension.forLoggedOff()) {
+                // user not authenticated but widget is for authenticated users only
+                continue;
+            }
+
+            // add it to the lists
+            switch (extension.getLocation()) {
+                case BOTTOM: bottomExtensions.add(extension); break;
+                case LEFT: leftExtensions.add(extension); break;
+                case RIGHT: rightExtensions.add(extension); break;
+                case TOP: topExtensions.add(extension); break;
+            }
+        }
+
+        Collections.sort(bottomExtensions, COMPARE_PRIORITY_INVERSE);
+        Collections.sort(leftExtensions, COMPARE_PRIORITY);
+        Collections.sort(rightExtensions, COMPARE_PRIORITY_INVERSE);
+        Collections.sort(topExtensions, COMPARE_PRIORITY);
+    }
 }

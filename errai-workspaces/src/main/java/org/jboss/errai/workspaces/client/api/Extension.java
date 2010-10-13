@@ -1,5 +1,7 @@
 package org.jboss.errai.workspaces.client.api;
 
+import java.util.Comparator;
+
 /**
  * Defines a configured and initialized widget extension at runtime.
  *
@@ -9,6 +11,24 @@ package org.jboss.errai.workspaces.client.api;
  * @since 1.1
  */
 public interface Extension extends WidgetProvider {
+
+    /**
+     * Compares two extensions' priorities.
+     */
+    public static final Comparator<Extension> COMPARE_PRIORITY = new Comparator<Extension>(){
+        public int compare(Extension o1, Extension o2) {
+            return o1.getPriority() - o2.getPriority();
+        }
+    };
+
+    /**
+     * Compares two extensions' priorities.
+     */
+    public static final Comparator<Extension> COMPARE_PRIORITY_INVERSE = new Comparator<Extension>(){
+        public int compare(Extension o1, Extension o2) {
+            return o2.getPriority() - o1.getPriority();
+        }
+    };
 
     /**
      * Where to display the widget.
@@ -57,5 +77,4 @@ public interface Extension extends WidgetProvider {
         RIGHT,
         TOP
     }
-
 }

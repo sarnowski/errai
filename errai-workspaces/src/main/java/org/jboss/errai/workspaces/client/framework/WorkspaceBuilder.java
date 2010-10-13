@@ -249,5 +249,8 @@ public class WorkspaceBuilder implements ToolContainer {
             }
         }
 
+
+        // add extensions
+        workspace.addExtensions(toBeLoadedExtensions);
     }
 }
