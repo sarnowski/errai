@@ -34,13 +34,22 @@ import org.jboss.errai.bus.server.service.metadata.MetaDataScanner;
 import org.jboss.errai.ioc.rebind.IOCGenerator;
 import org.jboss.errai.workspaces.client.api.ProvisioningCallback;
 import org.jboss.errai.workspaces.client.api.WidgetProvider;
+import org.jboss.errai.workspaces.client.api.annotations.LoadExtension;
 import org.jboss.errai.workspaces.client.api.annotations.GroupOrder;
 import org.jboss.errai.workspaces.client.api.annotations.LoadTool;
 import org.jboss.errai.workspaces.client.api.annotations.LoadToolSet;
 import org.jboss.errai.workspaces.client.api.annotations.LoginComponent;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.Set;
 
 public class WorkspaceLoaderBootstrapGenerator extends Generator {
   /**
@@ -248,6 +257,26 @@ public class WorkspaceLoaderBootstrapGenerator extends Generator {
     }
 
     /**
+     * LoadExtension
+     */
+    Set<Class<?>> extensionWidgets = scanner.getTypesAnnotatedWith(LoadExtension.class);
+    for(Class<?> extensionWidgetClass : extensionWidgets)
+    {
+      JClassType clazz = typeOracle.findType(extensionWidgetClass.getName());
+
+      if ((!applyFilter || enabledTools.contains(clazz.getQualifiedSourceName())))
+      {
+
+        iocGenerator.addType(clazz);
+        LoadExtension loadExtension = clazz.getAnnotation(LoadExtension.class);
+
+        logger.log(TreeLogger.Type.INFO, "Adding Errai Extension: " + clazz.getQualifiedSourceName());
+
+        generateExtensionProvisioning(context, clazz.getQualifiedSourceName(), loadExtension,  logger, sourceWriter);
+      }
+    }
+
+    /**
      * Group order
      */
     Set<Class<?>> groupOrderClasses = scanner.getTypesAnnotatedWith(GroupOrder.class);
@@ -323,6 +352,55 @@ public class WorkspaceLoaderBootstrapGenerator extends Generator {
     } else {
       writer.println(", " + rolesBuilder.toString() + ");");
     }
+  }
+
+  public void generateExtensionProvisioning(
+      final GeneratorContext context,
+      String className,
+      final LoadExtension loadExtension,
+      final TreeLogger logger,
+      final SourceWriter writer) {
+
+    JClassType type;
+    JClassType widgetType;
+    try {
+      type = typeOracle.getType(className);
+      widgetType = typeOracle.getType(Widget.class.getName());
+    }
+    catch (NotFoundException e) {
+      throw new RuntimeException("error bootstrapping: " + className, e);
+    }
+
+    String providerName;
+
+    if (widgetType.isAssignableFrom(type)) {
+
+
+      writer.println(WidgetProvider.class.getName() + " widgetProvider" + (++counter) + " = new " + WidgetProvider.class.getName() + "() {");
+      writer.outdent();
+      writer.println("public void provideWidget(" + ProvisioningCallback.class.getName() + " callback) {");
+      writer.outdent();
+      String widgetName = iocGenerator
+          .generateInjectors(type);
+
+      writer.println("callback.onSuccess(" + widgetName + ");");
+      writer.outdent();
+      writer.println("}");
+      writer.outdent();
+      writer.println("};");
+
+      providerName = "widgetProvider" + counter;
+    } else {
+      providerName = iocGenerator
+          .generateInjectors(type);
+    }
+
+    writer.print("workspace.addExtension(\"" + loadExtension.location().name() + "\""
+        + ", " + loadExtension.priority()
+        + ", " + loadExtension.loggedIn()
+        + ", " + loadExtension.loggedOff()
+        + ", " + providerName);
+    writer.println(");");
   }
 }
 

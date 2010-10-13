@@ -30,6 +30,12 @@ public interface ToolContainer
   void addTool(String group, String name, String icon,
                                                         boolean multipleAllowed, int priority, WidgetProvider component, String[] renderIfRoles);
 
+  void addExtension(String location,
+                    int priority,
+                    boolean loggedIn,
+                    boolean loggedOff,
+                    WidgetProvider component);
+
   void setLoginComponent(WidgetProvider loginComponent);
 
   void setPreferredGroupOrdering(String[] groups);

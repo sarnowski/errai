@@ -24,10 +24,12 @@ import org.jboss.errai.bus.client.security.AuthenticationContext;
 import org.jboss.errai.bus.client.security.Role;
 import org.jboss.errai.bus.client.security.SecurityService;
 import org.jboss.errai.workspaces.client.Workspace;
+import org.jboss.errai.workspaces.client.api.Extension;
 import org.jboss.errai.workspaces.client.api.ResourceFactory;
 import org.jboss.errai.workspaces.client.api.Tool;
 import org.jboss.errai.workspaces.client.api.ToolSet;
 import org.jboss.errai.workspaces.client.api.WidgetProvider;
+import org.jboss.errai.workspaces.client.api.annotations.LoadExtension;
 import org.jboss.errai.workspaces.client.icons.ErraiImageBundle;
 
 import java.util.*;
@@ -45,6 +47,7 @@ public class WorkspaceBuilder implements ToolContainer {
     protected static Map<String, List<ToolProvider>> toBeLoadedGroups = new HashMap<String, List<ToolProvider>>();
     protected static List<String> preferredGroupOrdering = new ArrayList<String>();
     protected static int toolCounter = 0;
+    protected static List<Extension> toBeLoadedExtensions = new ArrayList<Extension>();
 
     public void setLoginComponent(WidgetProvider loginComponent) {
         //this.loginComponent = loginComponent;
@@ -137,6 +140,21 @@ public class WorkspaceBuilder implements ToolContainer {
         };
 
         toBeLoadedGroups.get(group).add(provider);
+    }
+
+    public void addExtension(String location,
+                             int priority,
+                             boolean loggedIn,
+                             boolean loggedOff,
+                             WidgetProvider component) {
+
+        toBeLoadedExtensions.add(new ExtensionDefinition(
+            Extension.Location.valueOf(location),
+            priority,
+            loggedIn,
+            loggedOff,
+            component
+        ));
     }
 
     /**
